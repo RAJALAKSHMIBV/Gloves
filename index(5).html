@@ -1,0 +1,392 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gloves Tracker | CJB1</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    header {
+      background: linear-gradient(135deg, #232f3e, #ff9900);
+      color: white; padding: 16px 30px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: 1.4rem; letter-spacing: 1px; }
+    header .sub { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+    #clock { font-size: 1rem; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 14px; border-radius: 8px; letter-spacing: 0.5px; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 18px; }
+    .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+    .stat-box {
+      flex: 1; min-width: 120px; background: white; border-radius: 12px;
+      padding: 16px 12px; text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      border-top: 4px solid #ff9900;
+      transition: transform 0.2s;
+    }
+    .stat-box:hover { transform: translateY(-2px); }
+    .stat-box.blue-top { border-top-color: #2980b9; }
+    .stat-box.green-top { border-top-color: #27ae60; }
+    .stat-box .num { font-size: 2.2rem; font-weight: 800; color: #232f3e; line-height: 1; }
+    .stat-box .lbl { font-size: 0.7rem; color: #888; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box .trend { font-size: 0.72rem; margin-top: 4px; font-weight: 600; }
+    .card { background: white; border-radius: 12px; padding: 22px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+    .card h2 { font-size: 1rem; margin-bottom: 14px; color: #232f3e; border-left: 4px solid #ff9900; padding-left: 10px; display: flex; align-items: center; gap: 8px; }
+    .live-dot { width: 8px; height: 8px; background: #27ae60; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .fg { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+    .fg label { font-size: 0.72rem; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    input[type="text"], input[type="date"], select {
+      padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 0.9rem; background: #fafafa; transition: border 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus { border-color: #ff9900; outline: none; background: white; box-shadow: 0 0 0 3px rgba(255,153,0,0.15); }
+    .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .btn:active { transform: scale(0.96); }
+    .btn-orange { background: #ff9900; color: white; }
+    .btn-orange:hover { background: #e68900; box-shadow: 0 3px 10px rgba(255,153,0,0.4); }
+    .btn-dark { background: #232f3e; color: white; }
+    .btn-dark:hover { background: #1a252f; }
+    .btn-red { background: #e74c3c; color: white; }
+    .btn-red:hover { background: #c0392b; }
+    .btn-blue { background: #2980b9; color: white; }
+    .btn-blue:hover { background: #1f6391; }
+    .btn-purple { background: #8e44ad; color: white; }
+    .btn-purple:hover { background: #6c3483; }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+    .flash { display: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; margin-top: 12px; font-size: 0.88rem; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+    .flash.ok { background: #e8f5e9; border: 1.5px solid #4caf50; color: #2e7d32; }
+    .flash.err { background: #fdecea; border: 1.5px solid #e74c3c; color: #c0392b; }
+    .chip { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+    .chip-issued { background: #fff3cd; color: #856404; }
+    .chip-returned { background: #d1e7dd; color: #0f5132; }
+    .chip-day { background: #fff3cd; color: #856404; }
+    .chip-night { background: #d1d5f0; color: #2c3e8c; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 800px; }
+    thead tr { background: #232f3e; color: white; }
+    thead th { padding: 10px 11px; text-align: left; font-weight: 600; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+    tbody tr:hover { background: #fff8ee; }
+    tbody tr.new-row { animation: rowIn 0.4s ease; }
+    @keyframes rowIn { from{background:#fff3cd;opacity:0.5} to{background:transparent;opacity:1} }
+    tbody td { padding: 8px 11px; vertical-align: middle; }
+    .empty-msg { text-align: center; color: #bbb; padding: 30px; font-size: 0.9rem; }
+    .week-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.84rem; }
+    .week-table th { background: #232f3e; color: white; padding: 9px 12px; text-align: left; }
+    .week-table td { padding: 9px 12px; border-bottom: 1px solid #eee; }
+    .week-table tr:hover td { background: #fff8ee; }
+    .highlight-cur { background: #fff8ee !important; font-weight: 700; }
+    .rank-1 td { background: #fff9e6 !important; }
+    .rank-2 td { background: #fef0ee !important; }
+    .rank-3 td { background: #fdf5fb !important; }
+    .risk-high { color: #c0392b; font-weight: 700; }
+    .risk-med { color: #e67e22; font-weight: 700; }
+    .risk-low { color: #27ae60; font-weight: 700; }
+    .info-bar { padding: 11px 15px; border-radius: 8px; margin-bottom: 12px; font-size: 0.86rem; }
+    .info-bar.orange { background: #fff8ee; border-left: 4px solid #ff9900; }
+    .info-bar.red { background: #fdecea; border-left: 4px solid #e74c3c; }
+    @media print {
+      body { background: white; }
+      header { background: #232f3e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; position: static; }
+      .no-print { display: none !important; }
+      .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+      .stat-box { border: 1px solid #ddd; box-shadow: none; }
+      thead tr { background: #232f3e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table { font-size: 8pt; }
+    }
+    @media (max-width: 640px) { .row { flex-direction: column; } .stats-row { flex-direction: column; } }
+    .tabs { margin-bottom: 20px; }
+    .tab-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { padding: 10px 20px; border: none; background: #ddd; cursor: pointer; border-radius: 8px; font-weight: 600; transition: background 0.2s; }
+    .tab-btn.active { background: #ff9900; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    :root{
+      --orange:#FF9900;--dark:#131921;--navy:#232F3E;--gold:#FEBD69;
+      --green:#1E8449;--green-lt:#EAFAF1;--red:#C0392B;--red-lt:#FDECEA;
+      --bg:#F3F3F3;--card:#FFFFFF;--border:#DDDDDD;--text:#0F1111;--muted:#565959;
+    }
+    .entry-card{background:var(--card);border-radius:10px;padding:32px;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.09);max-width:520px;margin:0 auto;}
+    .ct{font-size:1rem;font-weight:700;color:var(--dark);border-left:4px solid var(--orange);padding-left:12px;margin-bottom:26px;display:flex;align-items:center;gap:8px;}
+    .badge-wrap{margin-bottom:0;}
+    .badge-wrap label{display:block;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+    .badge-input-row{display:flex;gap:10px;}
+    #bIn{flex:1;padding:14px 16px;border:2px solid #bbb;border-radius:6px;font-size:1.1rem;font-weight:700;background:white;font-family:'Segoe UI',Arial,sans-serif;color:var(--text);letter-spacing:1.5px;box-shadow:0 1px 3px rgba(0,0,0,0.1) inset;transition:border 0.15s,box-shadow 0.15s;}
+    #bIn:focus{border-color:var(--orange);outline:none;box-shadow:0 0 0 3px rgba(255,153,0,0.2),0 1px 3px rgba(0,0,0,0.1) inset;}
+    .clear-btn{padding:0 14px;background:#f0f2f2;border:1px solid #bbb;border-radius:6px;font-size:1.1rem;cursor:pointer;color:var(--muted);transition:background 0.15s;}
+    .clear-btn:hover{background:#e3e6e6;color:var(--red);}
+    .status-section{display:none;margin-top:24px;animation:fadeUp 0.3s ease;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .status-label{font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;text-align:center;}
+    .status-btns{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .status-btn{padding:22px 10px;border:2.5px solid var(--border);border-radius:10px;font-size:0.92rem;font-weight:700;cursor:pointer;text-align:center;background:white;font-family:'Segoe UI',Arial,sans-serif;transition:all 0.18s;color:var(--muted);user-select:none;-webkit-tap-highlight-color:transparent;}
+    .status-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    .status-btn .icon{font-size:2.2rem;display:block;margin-bottom:8px;}
+    .status-btn .lbl{font-size:0.84rem;font-weight:700;display:block;}
+    .status-btn .sub-lbl{font-size:0.68rem;color:var(--muted);margin-top:3px;display:block;}
+    #btnIssued{border-color:#FFD580;}
+    #btnIssued:hover{background:#FFF8E1;border-color:var(--orange);}
+    #btnIssued.active{background:#FFF3CD;border-color:var(--orange);color:#856404;box-shadow:0 0 0 3px rgba(255,153,0,0.2);}
+    #btnIssued.active .sub-lbl{color:#a07000;}
+    #btnReturned{border-color:#A9DFBF;}
+    #btnReturned:hover{background:#EAFAF1;border-color:var(--green);}
+    #btnReturned.active{background:var(--green-lt);border-color:var(--green);color:var(--green);box-shadow:0 0 0 3px rgba(30,132,73,0.15);}
+    #btnReturned.active .sub-lbl{color:#1a6b3c;}
+    .badge-preview{margin-top:16px;padding:10px 14px;background:#F8F9FA;border-radius:6px;font-size:0.82rem;color:var(--muted);border:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+    .badge-preview strong{color:var(--dark);font-size:0.95rem;letter-spacing:1px;}
+    .msg{display:none;padding:13px 16px;border-radius:6px;font-weight:600;margin-top:16px;font-size:0.9rem;animation:si 0.3s ease;text-align:center;}
+    @keyframes si{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    .ok{background:var(--green-lt);border:1.5px solid #5cb85c;color:#1E8449;}
+    .er{background:var(--red-lt);border:1.5px solid var(--red);color:#922b21;}
+    .tip{margin-top:20px;padding:12px 16px;background:#FFF8EE;border-radius:6px;font-size:0.78rem;color:var(--muted);border:1px solid #FFE0A0;line-height:1.8;}
+    .report-banner{margin-top:20px;padding:14px 18px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+    .report-banner-text{color:white;font-size:0.82rem;font-weight:600;}
+    .report-banner-text span{color:var(--gold);font-size:0.72rem;display:block;margin-top:2px;font-weight:400;}
+    .report-open-btn{background:var(--orange);color:var(--dark);padding:9px 18px;border-radius:4px;font-size:0.82rem;font-weight:800;border:none;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:background 0.2s;}
+    .report-open-btn:hover{background:#e68900;}
+    .ld{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;animation:lp 1.5s infinite;}
+    @keyframes lp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}
+    .notification-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:12px;padding:32px;box-shadow:0 8px 32px rgba(0,0,0,0.25);z-index:1000;text-align:center;animation:popIn 0.4s ease;}
+    @keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(0.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    .notification-modal.show{display:block;}
+    .notification-icon{font-size:3.5rem;margin-bottom:16px;}
+    .notification-title{font-size:1.3rem;font-weight:800;color:var(--dark);margin-bottom:8px;}
+    .notification-badge{font-size:1.8rem;color:var(--orange);font-weight:800;letter-spacing:1.5px;margin:16px 0;}
+    .notification-subtitle{font-size:0.9rem;color:var(--muted);line-height:1.6;}
+    .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:999;}
+    .modal-overlay.show{display:block;}
+  </style>
+</head>
+<body>
+ <div class="modal-overlay" id="modalOverlay"></div>
+ <div class="notification-modal" id="notificationModal">
+  <div class="notification-icon" id="notificationIcon">✅</div>
+  <div class="notification-title" id="notificationTitle">Gloves Issued</div>
+  <div class="notification-badge" id="notificationBadge">ABC123</div>
+  <div class="notification-subtitle">Entry recorded successfully</div>
+ </div>
+ <header>
+  <div>
+    <h1>🧤 Gloves Tracker</h1>
+    <div class="sub">CJB1 Fulfillment Center — Coimbatore Operations</div>
+  </div>
+  <div id="clock">--:--:--</div>
+ </header>
+ <div class="container">
+  <div class="tabs">
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="showTab(0)">Badge Input</button>
+      <button class="tab-btn" onclick="showTab(1)">Dashboard</button>
+    </div>
+    <div id="tab0" class="tab-content active">
+      <div class="entry-card">
+        <div class="ct">Gloves Entry <span class="ld"></span></div>
+        <div class="badge-wrap">
+          <label>Badge ID</label>
+          <div class="badge-input-row">
+            <input type="text" id="bIn" placeholder="Scan or type Badge ID" autocomplete="off" autofocus
+                   oninput="onBadgeInput()" onkeydown="onBadgeKey(event)"/>
+            <button class="clear-btn" onclick="clearBadge()" title="Clear">&#10005;</button>
+          </div>
+        </div>
+        <div class="status-section" id="statusSection">
+          <div class="badge-preview">
+            Badge: <strong id="badgePreview"></strong>
+            <span style="margin-left:auto;font-size:0.72rem;color:var(--muted);">Select status below</span>
+          </div>
+          <div class="status-label" style="margin-top:16px;">What is the gloves status?</div>
+          <div class="status-btns">
+            <div class="status-btn" id="btnIssued" onclick="submitEntry('Issued')">
+              <span class="icon">&#128308;</span>
+              <span class="lbl">Not Returned</span>
+              <span class="sub-lbl">Gloves issued out</span>
+            </div>
+            <div class="status-btn" id="btnReturned" onclick="submitEntry('Returned')">
+              <span class="icon">&#128994;</span>
+              <span class="lbl">Returned</span>
+              <span class="sub-lbl">Gloves handed back</span>
+            </div>
+          </div>
+        </div>
+        <div class="msg" id="mMain"></div>
+        <div class="tip">
+          &#128161; <strong>How to use:</strong><br/>
+          1. Scan or type the <strong>Badge ID</strong> — two buttons appear automatically<br/>
+          2. Tap <strong>Not Returned</strong> &#128308; when issuing gloves to an associate<br/>
+          3. Tap <strong>Returned</strong> &#128994; when collecting gloves back<br/>
+          4. Entry saves instantly to browser — Badge ID clears for next scan
+        </div>
+      </div>
+      <div class="report-banner">
+        <div class="report-banner-text">
+          Gloves Tracker Report
+          <span>View full tracking dashboard, all records, and live stats</span>
+        </div>
+        <button class="report-open-btn" onclick="showTab(1)">
+          &#128202; View Report &#8599;
+        </button>
+      </div>
+    </div>
+    <div id="tab1" class="tab-content">
+      <div class="stats-row" id="statsRow">
+        <div class="stat-box">
+          <div class="num" id="sTotal">0</div>
+          <div class="lbl">Total Issued</div>
+          <div class="trend" id="tTotal" style="color:#888;">All time</div>
+        </div>
+        <div class="stat-box blue-top">
+          <div class="num" id="sActive">0</div>
+          <div class="lbl">Currently Issued</div>
+          <div class="trend" id="tActive" style="color:#2980b9;">Pending return</div>
+        </div>
+        <div class="stat-box green-top">
+          <div class="num" id="sReturned">0</div>
+          <div class="lbl">Returned</div>
+          <div class="trend" id="tReturned" style="color:#27ae60;"></div>
+        </div>
+        <div class="stat-box">
+          <div class="num" id="sToday">0</div>
+          <div class="lbl">Issued Today</div>
+          <div class="trend" id="tToday" style="color:#ff9900;"></div>
+        </div>
+        <div class="stat-box">
+          <div class="num" id="sDay">0</div>
+          <div class="lbl">Day Shift Today</div>
+          <div class="trend" style="color:#856404;">☀️ Day</div>
+        </div>
+        <div class="stat-box">
+          <div class="num" id="sNight">0</div>
+          <div class="lbl">Night Shift Today</div>
+          <div class="trend" style="color:#2c3e8c;">🌙 Night</div>
+        </div>
+      </div>
+      <div class="stats-row" id="weekStatsRow"></div>
+      <div class="card">
+        <h2>📊 Weekly Issuance Lookup</h2>
+        <div class="row no-print" style="margin-bottom:14px;">
+          <div class="fg" style="max-width:260px;">
+            <label>Badge ID</label>
+            <input type="text" id="weekBadge" placeholder="Enter Badge ID" />
+          </div>
+          <button class="btn btn-blue no-print" onclick="showWeekly()">🔍 Check Weekly Summary</button>
+        </div>
+        <div id="weeklyResult"></div>
+      </div>
+      <div class="card">
+        <h2>🚨 Top Repeated Defaulters Report</h2>
+        <div class="row no-print" style="margin-bottom:14px;">
+          <div class="fg" style="max-width:210px;">
+            <label>Metric</label>
+            <select id="dMetric">
+              <option value="total">Most Gloves Issued</option>
+              <option value="frequency">Most Frequent Requests</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:160px;">
+            <label>Period</label>
+            <select id="dPeriod">
+              <option value="all">All Time</option>
+              <option value="thisweek">This Week</option>
+              <option value="lastweek">Last Week</option>
+              <option value="thismonth">This Month</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:110px;">
+            <label>Top N</label>
+            <select id="dTopN">
+              <option value="5">Top 5</option>
+              <option value="10">Top 10</option>
+              <option value="20">Top 20</option>
+            </select>
+          </div>
+          <button class="btn btn-red no-print" onclick="genDefaulters()">🚨 Generate</button>
+          <button class="btn btn-purple no-print" onclick="printDefaulters()">🖨️ Print</button>
+        </div>
+        <div id="defaultersResult"></div>
+      </div>
+      <div class="card">
+        <h2>📋 Issuance Records <span class="live-dot"></span></h2>
+        <div class="row no-print" style="margin-bottom:12px;">
+          <div class="fg">
+            <label>Search Badge / Name</label>
+            <input type="text" id="searchInput" placeholder="Filter..." oninput="renderTable()" />
+          </div>
+          <div class="fg" style="max-width:140px;">
+            <label>Status</label>
+            <select id="fStatus" onchange="renderTable()">
+              <option value="All">All</option>
+              <option value="Issued">Issued</option>
+              <option value="Returned">Returned</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:140px;">
+            <label>Shift</label>
+            <select id="fShift" onchange="renderTable()">
+              <option value="All">All Shifts</option>
+              <option value="Day">Day Shift</option>
+              <option value="Night">Night Shift</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:155px;">
+            <label>Date</label>
+            <input type="date" id="fDate" onchange="renderTable()" />
+          </div>
+          <button class="btn btn-dark no-print" onclick="exportCSV()">⬇️ CSV</button>
+          <button class="btn btn-purple no-print" onclick="printSummary()">🖨️ Print</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Badge ID</th>
+                <th>Name</th>
+                <th>Shift</th>
+                <th>Issued At</th>
+                <th>Returned At</th>
+                <th>Return Reason</th>
+                <th>Status</th>
+                <th class="no-print">Del</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-msg" id="emptyMsg">No records yet. Issue gloves to get started.</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <button class="btn btn-orange no-print" onclick="refreshDashboard()">🔄 Refresh Dashboard</button>
+      </div>
+    </div>
+  </div>
+ </div>
+ <script>
+  var records = [];
+  var lastCount = 0;
+
+  function load() {
+    var stored = localStorage.getItem('cjb1_gloves_records');
+    if (stored) {
+      try {
+        records = JSON.parse(stored);
+      } catch(e) {
+        records = [];
+      }
+    }
+  }
+
+  function save() {
+    localStorage.setItem('cjb1_gloves_records', JSON.stringify(records));
+  }
+
+  function showTab(tabIndex) {
+    var tabs = document.querySelectorAll('.tab-content');
+    var buttons = document.querySelectorAll('.tab-btn');
+    tabs.forEach(function(tab, i) {
+      tab.classList.toggle('active',
