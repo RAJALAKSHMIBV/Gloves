@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gloves Tracker | CJB1</title>
+  <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; }
+    header {
+      background: linear-gradient(135deg, #232f3e, #ff9900);
+      color: white; padding: 16px 30px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: 1.4rem; letter-spacing: 1px; }
+    header .sub { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+    #clock { font-size: 1rem; font-weight: 700; background: rgba(255,255,255,0.15); padding: 6px 14px; border-radius: 8px; letter-spacing: 0.5px; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 18px; }
+     /* STATS */
+    .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+    .stat-box {
+      flex: 1; min-width: 120px; background: white; border-radius: 12px;
+      padding: 16px 12px; text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      border-top: 4px solid #ff9900;
+      transition: transform 0.2s;
+    }
+    .stat-box:hover { transform: translateY(-2px); }
+    .stat-box.red-top { border-top-color: #e74c3c; }
+    .stat-box.green-top { border-top-color: #27ae60; }
+    .stat-box.blue-top { border-top-color: #2980b9; }
+    .stat-box .num { font-size: 2.2rem; font-weight: 800; color: #232f3e; line-height: 1; }
+    .stat-box .lbl { font-size: 0.7rem; color: #888; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box .trend { font-size: 0.72rem; margin-top: 4px; font-weight: 600; }
+     /* CARDS */
+    .card { background: white; border-radius: 12px; padding: 22px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+    .card h2 { font-size: 1rem; margin-bottom: 14px; color: #232f3e; border-left: 4px solid #ff9900; padding-left: 10px; display: flex; align-items: center; gap: 8px; }
+    .live-dot { width: 8px; height: 8px; background: #27ae60; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+     /* FORM */
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .fg { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+    .fg label { font-size: 0.72rem; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    input[type="text"], input[type="date"], select {
+      padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 0.9rem; background: #fafafa; transition: border 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus { border-color: #ff9900; outline: none; background: white; box-shadow: 0 0 0 3px rgba(255,153,0,0.15); }
+     /* BUTTONS */
+    .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .btn:active { transform: scale(0.96); }
+    .btn-orange { background: #ff9900; color: white; }
+    .btn-orange:hover { background: #e68900; box-shadow: 0 3px 10px rgba(255,153,0,0.4); }
+    .btn-dark { background: #232f3e; color: white; }
+    .btn-dark:hover { background: #1a252f; }
+    .btn-red { background: #e74c3c; color: white; }
+    .btn-red:hover { background: #c0392b; }
+    .btn-blue { background: #2980b9; color: white; }
+    .btn-blue:hover { background: #1f6391; }
+    .btn-purple { background: #8e44ad; color: white; }
+    .btn-purple:hover { background: #6c3483; }
+    .btn-gray { background: #ecf0f1; color: #555; }
+    .btn-gray:hover { background: #dde1e4; }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+     /* FLASH */
+    .flash { display: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; margin-top: 12px; font-size: 0.88rem; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+    .flash.ok { background: #e8f5e9; border: 1.5px solid #4caf50; color: #2e7d32; }
+    .flash.err { background: #fdecea; border: 1.5px solid #e74c3c; color: #c0392b; }
+     /* CHIPS */
+    .chip { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+    .chip-issued { background: #fff3cd; color: #856404; }
+    .chip-returned { background: #d1e7dd; color: #0f5132; }
+    .chip-day { background: #fff3cd; color: #856404; }
+    .chip-night { background: #d1d5f0; color: #2c3e8c; }
+     /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 800px; }
+    thead tr { background: #232f3e; color: white; }
+    thead th { padding: 10px 11px; text-align: left; font-weight: 600; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+    tbody tr:hover { background: #fff8ee; }
+    tbody tr.new-row { animation: rowIn 0.4s ease; }
+    @keyframes rowIn { from{background:#fff3cd;opacity:0.5} to{background:transparent;opacity:1} }
+    tbody td { padding: 8px 11px; vertical-align: middle; }
+    .empty-msg { text-align: center; color: #bbb; padding: 30px; font-size: 0.9rem; }
+     /* WEEK TABLE */
+    .week-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.84rem; }
+    .week-table th { background: #232f3e; color: white; padding: 9px 12px; text-align: left; }
+    .week-table td { padding: 9px 12px; border-bottom: 1px solid #eee; }
+    .week-table tr:hover td { background: #fff8ee; }
+    .highlight-cur { background: #fff8ee !important; font-weight: 700; }
+     /* DEFAULTERS */
+    .rank-1 td { background: #fff9e6 !important; }
+    .rank-2 td { background: #fef0ee !important; }
+    .rank-3 td { background: #fdf5fb !important; }
+    .risk-high { color: #c0392b; font-weight: 700; }
+    .risk-med { color: #e67e22; font-weight: 700; }
+    .risk-low { color: #27ae60; font-weight: 700; }
+     /* INFO BAR */
+    .info-bar { padding: 11px 15px; border-radius: 8px; margin-bottom: 12px; font-size: 0.86rem; }
+    .info-bar.orange { background: #fff8ee; border-left: 4px solid #ff9900; }
+    .info-bar.red { background: #fdecea; border-left: 4px solid #e74c3c; }
+     /* LIVE ACTIVITY FEED */
+    #activityFeed { max-height: 160px; overflow-y: auto; }
+    .activity-item { padding: 7px 12px; border-bottom: 1px solid #f5f5f5; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-issue { background: #ff9900; }
+    .dot-return { background: #27ae60; }
+    .dot-damage { background: #e74c3c; }
+    .activity-time { color: #aaa; font-size: 0.75rem; margin-left: auto; white-space: nowrap; }
+     /* GRID LAYOUT */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+     /* PRINT */
+    @media print {
+      body { background: white; }
+      header { background: #232f3e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; position: static; }
+      .no-print { display: none !important; }
+      .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+      .stat-box { border: 1px solid #ddd; box-shadow: none; }
+      thead tr { background: #232f3e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table { font-size: 8pt; }
+    }
+    @media (max-width: 640px) { .row { flex-direction: column; } .stats-row { flex-direction: column; } }
+     /* TABS */
+    .tabs { margin-bottom: 20px; }
+    .tab-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { padding: 10px 20px; border: none; background: #ddd; cursor: pointer; border-radius: 8px; font-weight: 600; transition: background 0.2s; }
+    .tab-btn.active { background: #ff9900; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+     /* NEW STYLES FOR BADGE INPUT */
+    :root{
+      --orange:#FF9900;--dark:#131921;--navy:#232F3E;--gold:#FEBD69;
+      --green:#1E8449;--green-lt:#EAFAF1;--red:#C0392B;--red-lt:#FDECEA;
+      --bg:#F3F3F3;--card:#FFFFFF;--border:#DDDDDD;--text:#0F1111;--muted:#565959;
+    }
+    .entry-card{background:var(--card);border-radius:10px;padding:32px;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.09);max-width:520px;margin:0 auto;}
+    .ct{font-size:1rem;font-weight:700;color:var(--dark);border-left:4px solid var(--orange);padding-left:12px;margin-bottom:26px;display:flex;align-items:center;gap:8px;}
+    .badge-wrap{margin-bottom:0;}
+    .badge-wrap label{display:block;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+    .badge-input-row{display:flex;gap:10px;}
+    #bIn{flex:1;padding:14px 16px;border:2px solid #bbb;border-radius:6px;font-size:1.1rem;font-weight:700;background:white;font-family:'Segoe UI',Arial,sans-serif;color:var(--text);letter-spacing:1.5px;box-shadow:0 1px 3px rgba(0,0,0,0.1) inset;transition:border 0.15s,box-shadow 0.15s;}
+    #bIn:focus{border-color:var(--orange);outline:none;box-shadow:0 0 0 3px rgba(255,153,0,0.2),0 1px 3px rgba(0,0,0,0.1) inset;}
+    .clear-btn{padding:0 14px;background:#f0f2f2;border:1px solid #bbb;border-radius:6px;font-size:1.1rem;cursor:pointer;color:var(--muted);transition:background 0.15s;}
+    .clear-btn:hover{background:#e3e6e6;color:var(--red);}
+    .status-section{display:none;margin-top:24px;animation:fadeUp 0.3s ease;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .status-label{font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;text-align:center;}
+    .status-btns{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .status-btn{padding:22px 10px;border:2.5px solid var(--border);border-radius:10px;font-size:0.92rem;font-weight:700;cursor:pointer;text-align:center;background:white;font-family:'Segoe UI',Arial,sans-serif;transition:all 0.18s;color:var(--muted);user-select:none;-webkit-tap-highlight-color:transparent;}
+    .status-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+    .status-btn .icon{font-size:2.2rem;display:block;margin-bottom:8px;}
+    .status-btn .lbl{font-size:0.84rem;font-weight:700;display:block;}
+    .status-btn .sub-lbl{font-size:0.68rem;color:var(--muted);margin-top:3px;display:block;}
+    #btnIssued{border-color:#FFD580;}
+    #btnIssued:hover{background:#FFF8E1;border-color:var(--orange);}
+    #btnIssued.active{background:#FFF3CD;border-color:var(--orange);color:#856404;box-shadow:0 0 0 3px rgba(255,153,0,0.2);}
+    #btnIssued.active .sub-lbl{color:#a07000;}
+    #btnReturned{border-color:#A9DFBF;}
+    #btnReturned:hover{background:#EAFAF1;border-color:var(--green);}
+    #btnReturned.active{background:var(--green-lt);border-color:var(--green);color:var(--green);box-shadow:0 0 0 3px rgba(30,132,73,0.15);}
+    #btnReturned.active .sub-lbl{color:#1a6b3c;}
+    .badge-preview{margin-top:16px;padding:10px 14px;background:#F8F9FA;border-radius:6px;font-size:0.82rem;color:var(--muted);border:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+    .badge-preview strong{color:var(--dark);font-size:0.95rem;letter-spacing:1px;}
+    .msg{display:none;padding:13px 16px;border-radius:6px;font-weight:600;margin-top:16px;font-size:0.9rem;animation:si 0.3s ease;text-align:center;}
+    @keyframes si{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    .ok{background:var(--green-lt);border:1.5px solid #5cb85c;color:#1E8449;}
+    .er{background:var(--red-lt);border:1.5px solid var(--red);color:#922b21;}
+    .tip{margin-top:20px;padding:12px 16px;background:#FFF8EE;border-radius:6px;font-size:0.78rem;color:var(--muted);border:1px solid #FFE0A0;line-height:1.8;}
+    .report-banner{margin-top:20px;padding:14px 18px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+    .report-banner-text{color:white;font-size:0.82rem;font-weight:600;}
+    .report-banner-text span{color:var(--gold);font-size:0.72rem;display:block;margin-top:2px;font-weight:400;}
+    .report-open-btn{background:var(--orange);color:var(--dark);padding:9px 18px;border-radius:4px;font-size:0.82rem;font-weight:800;border:none;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:background 0.2s;}
+    .report-open-btn:hover{background:#e68900;}
+    .pending-section{margin-top:24px;}
+    .section-title{font-size:0.84rem;font-weight:700;color:var(--dark);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+    .pending-count{background:var(--red);color:white;padding:1px 8px;border-radius:10px;font-size:0.68rem;font-weight:800;}
+    .pending-scroll{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:white;box-shadow:0 2px 5px rgba(0,0,0,0.05);}
+    .pending-item{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #F5F5F5;font-size:0.82rem;gap:8px;}
+    .pending-item:last-child{border-bottom:none;}
+    .pending-badge{font-weight:800;color:var(--dark);letter-spacing:0.5px;}
+    .pending-time{color:var(--muted);font-size:0.7rem;flex:1;text-align:center;}
+    .qr-btn{padding:5px 13px;background:linear-gradient(to bottom,#2ecc71,#1E8449);color:white;border:1px solid #145a32;border-radius:4px;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:'Segoe UI',Arial,sans-serif;white-space:nowrap;}
+    .qr-btn:hover{background:linear-gradient(to bottom,#27ae60,#1a7a3c);}
+    .ld{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;animation:lp 1.5s infinite;}
+    @keyframes lp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}
+    /* NOTIFICATION MODAL */
+    .notification-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:12px;padding:32px;box-shadow:0 8px 32px rgba(0,0,0,0.25);z-index:1000;text-align:center;animation:popIn 0.4s ease;}
+    @keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(0.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    .notification-modal.show{display:block;}
+    .notification-icon{font-size:3.5rem;margin-bottom:16px;}
+    .notification-title{font-size:1.3rem;font-weight:800;color:var(--dark);margin-bottom:8px;}
+    .notification-badge{font-size:1.8rem;color:var(--orange);font-weight:800;letter-spacing:1.5px;margin:16px 0;}
+    .notification-subtitle{font-size:0.9rem;color:var(--muted);line-height:1.6;}
+    .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:999;}
+    .modal-overlay.show{display:block;}
+  </style>
+</head>
+<body>
+ <!-- NOTIFICATION MODAL -->
+ <div class="modal-overlay" id="modalOverlay"></div>
+ <div class="notification-modal" id="notificationModal">
+  <div class="notification-icon" id="notificationIcon">✅</div>
+  <div class="notification-title" id="notificationTitle">Gloves Issued</div>
+  <div class="notification-badge" id="notificationBadge">ABC123</div>
+  <div class="notification-subtitle">Entry recorded successfully</div>
+ </div>
+ <header>
+  <div>
+    <h1>🧤 Gloves Tracker</h1>
+    <div class="sub">CJB1 Fulfillment Center &mdash; Coimbatore Operations</div>
+  </div>
+  <div id="clock">--:--:--</div>
+ </header>
+ <div class="container">
+  <div class="tabs">
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="showTab(0)">Badge Input</button>
+      <button class="tab-btn" onclick="showTab(1)">Dashboard</button>
+    </div>
+    <div id="tab0" class="tab-content active">
+      <!-- ENTRY CARD -->
+      <div class="entry-card">
+        <div class="ct">Gloves Entry <span class="ld"></span></div>
+
+        <div class="badge-wrap">
+          <label>Badge ID</label>
+          <div class="badge-input-row">
+            <input type="text" id="bIn" placeholder="Scan or type Badge ID" autocomplete="off" autofocus
+                   oninput="onBadgeInput()" onkeydown="onBadgeKey(event)"/>
+            <button class="clear-btn" onclick="clearBadge()" title="Clear">&#10005;</button>
+          </div>
+        </div>
+
+        <!-- STATUS BUTTONS — appear after badge entered -->
+        <div class="status-section" id="statusSection">
+          <div class="badge-preview">
+            Badge: <strong id="badgePreview"></strong>
+            <span style="margin-left:auto;font-size:0.72rem;color:var(--muted);">Select status below</span>
+          </div>
+          <div class="status-label" style="margin-top:16px;">What is the gloves status?</div>
+          <div class="status-btns">
+            <div class="status-btn" id="btnIssued" onclick="submitEntry('Issued')">
+              <span class="icon">&#128308;</span>
+              <span class="lbl">Not Returned</span>
+              <span class="sub-lbl">Gloves issued out</span>
+            </div>
+            <div class="status-btn" id="btnReturned" onclick="submitEntry('Returned')">
+              <span class="icon">&#128994;</span>
+              <span class="lbl">Returned</span>
+              <span class="sub-lbl">Gloves handed back</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg" id="mMain"></div>
+
+        <div class="tip">
+          &#128161; <strong>How to use:</strong><br/>
+          1. Scan or type the <strong>Badge ID</strong> — two buttons appear automatically<br/>
+          2. Tap <strong>Not Returned</strong> &#128308; when issuing gloves to an associate<br/>
+          3. Tap <strong>Returned</strong> &#128994; when collecting gloves back<br/>
+          4. Entry saves instantly — Badge ID clears for the next scan
+        </div>
+      </div>
+
+      <!-- VIEW REPORT BANNER -->
+      <div class="report-banner">
+        <div class="report-banner-text">
+          Gloves Tracker Report
+          <span>View full tracking dashboard, all records, and live stats</span>
+        </div>
+        <button class="report-open-btn" onclick="showTab(1)">
+          &#128202; View Report &#8599;
+        </button>
+      </div>
+    </div>
+    <div id="tab1" class="tab-content">
+      <!-- LIVE STATS -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-box">
+          <div class="num" id="sTotal">0</div>
+          <div class="lbl">Total Issued</div>
+          <div class="trend" id="tTotal" style="color:#888;">All time</div>
+        </div>
+        <div class="stat-box blue-top">
+          <div class="num" id="sActive">0</div>
+          <div class="lbl">Currently Issued</div>
+          <div class="trend" id="tActive" style="color:#2980b9;">Pending return</div>
+        </div>
+        <div class="stat-box green-top">
+          <div class="num" id="sReturned">0</div>
+          <div class="lbl">Returned</div>
+          <div class="trend" id="tReturned" style="color:#27ae60;"></div>
+        </div>
+        <div class="stat-box">
+          <div class="num" id="sToday">0</div>
+          <div class="lbl">Issued Today</div>
+          <div class="trend" id="tToday" style="color:#ff9900;"></div>
+        </div>
+
+        <div class="stat-box">
+          <div class="num" id="sDay">0</div>
+          <div class="lbl">Day Shift Today</div>
+          <div class="trend" style="color:#856404;">☀️ Day</div>
+        </div>
+        <div class="stat-box">
+          <div class="num" id="sNight">0</div>
+          <div class="lbl">Night Shift Today</div>
+          <div class="trend" style="color:#2c3e8c;">🌙 Night</div>
+        </div>
+      </div>
+      <!-- WEEK ON WEEK REPORT AS STATS -->
+      <div class="stats-row" id="weekStatsRow"></div>
+      <!-- WEEKLY LOOKUP -->
+      <div class="card">
+        <h2>📊 Weekly Issuance Lookup</h2>
+        <div class="row no-print" style="margin-bottom:14px;">
+          <div class="fg" style="max-width:260px;">
+            <label>Badge ID</label>
+            <input type="text" id="weekBadge" placeholder="Enter Badge ID" />
+          </div>
+          <button class="btn btn-blue no-print" onclick="showWeekly()">🔍 Check Weekly Summary</button>
+        </div>
+        <div id="weeklyResult"></div>
+      </div>
+      <!-- DEFAULTERS -->
+      <div class="card">
+        <h2>🚨 Top Repeated Defaulters Report</h2>
+        <div class="row no-print" style="margin-bottom:14px;">
+          <div class="fg" style="max-width:210px;">
+            <label>Metric</label>
+            <select id="dMetric">
+              <option value="total">Most Gloves Issued</option>
+              <option value="frequency">Most Frequent Requests</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:160px;">
+            <label>Period</label>
+            <select id="dPeriod">
+              <option value="all">All Time</option>
+              <option value="thisweek">This Week</option>
+              <option value="lastweek">Last Week</option>
+              <option value="thismonth">This Month</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:110px;">
+            <label>Top N</label>
+            <select id="dTopN">
+              <option value="5">Top 5</option>
+              <option value="10">Top 10</option>
+              <option value="20">Top 20</option>
+            </select>
+          </div>
+          <button class="btn btn-red no-print" onclick="genDefaulters()">🚨 Generate</button>
+          <button class="btn btn-purple no-print" onclick="printDefaulters()">🖨️ Print</button>
+        </div>
+        <div id="defaultersResult"></div>
+      </div>
+      <!-- RECORDS TABLE -->
+      <div class="card">
+        <h2>📋 Issuance Records <span class="live-dot"></span></h2>
+        <div class="row no-print" style="margin-bottom:12px;">
+          <button class="btn btn-blue no-print" onclick="generateIssuanceReport()">📊 Generate Report</button>
+          <button class="btn btn-dark no-print" onclick="exportCSV()">⬇️ CSV</button>
+          <button class="btn btn-purple no-print" onclick="printSummary()">🖨️ Print</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Badge ID</th>
+                <th>Name</th>
+                <th>Shift</th>
+                <th>Issued At</th>
+                <th>Returned At</th>
+                <th>Return Reason</th>
+                <th>Status</th>
+                <th class="no-print">Del</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" style="display:none;"></tbody>
+          </table>
+        </div>
+        <div class="empty-msg" id="emptyMsg">No records yet. Issue gloves to get started.</div>
+      </div>
+      <!-- REFRESH DASHBOARD -->
+      <div class="card" style="text-align:center;">
+        <button class="btn btn-orange no-print" onclick="refreshDashboard()">🔄 Refresh Dashboard</button>
+      </div>
+    </div>
+  </div>
+ </div>
+ <script>
+  var records = [];
+  var activityLog = [];
+  var lastCount = 0;
+  var socket = io();
+  socket.on('update_data', function(data) {
+    records = data.records;
+    activityLog = data.activity;
+    updateStats();
+    renderTable();
+    renderActivity();
+    renderPending();
+    generateWeekOnWeek();
+  });
+   // ---- TABS ----
+  function showTab(tabIndex) {
+    var tabs = document.querySelectorAll('.tab-content');
+    var buttons = document.querySelectorAll('.tab-btn');
+    tabs.forEach(function(tab, i) {
+      tab.classList.toggle('active', i === tabIndex);
+    });
+    buttons.forEach(function(btn, i) {
+      btn.classList.toggle('active', i === tabIndex);
+    });
+  }
+   // ---- BADGE INPUT FUNCTIONS ----
+  function onBadgeInput() {
+    var badge = document.getElementById('bIn').value.trim();
+    var section = document.getElementById('statusSection');
+    var preview = document.getElementById('badgePreview');
+    if (badge.length > 0) {
+      preview.textContent = badge.toUpperCase();
+      section.style.display = 'block';
+      document.getElementById('btnIssued').classList.remove('active');
+      document.getElementById('btnReturned').classList.remove('active');
+    } else {
+      section.style.display = 'none';
+    }
+  }
+
+  function onBadgeKey(e) {
+    if (e.key === 'Enter') {
+      var badge = document.getElementById('bIn').value.trim();
+      if (badge) document.getElementById('btnIssued').focus();
+    }
+  }
+
+  function clearBadge() {
+    document.getElementById('bIn').value = '';
+    document.getElementById('statusSection').style.display = 'none';
+    document.getElementById('mMain').style.display = 'none';
+    document.getElementById('bIn').focus();
+  }
+
+  function showNotificationModal(badge, status) {
+    console.log('Notification triggered:', badge, status);
+    const modal = document.getElementById('notificationModal');
+    const overlay = document.getElementById('modalOverlay');
+    const icon = document.getElementById('notificationIcon');
+    const title = document.getElementById('notificationTitle');
+    const badgeEl = document.getElementById('notificationBadge');
+    
+    if (status === 'Issued') {
+      icon.textContent = '✅';
+      title.textContent = 'Gloves Issued';
+    } else {
+      icon.textContent = '✅';
+      title.textContent = 'Gloves Returned';
+    }
+    
+    badgeEl.textContent = badge;
+    modal.classList.add('show');
+    overlay.classList.add('show');
+    console.log('Modal shown');
+    
+    setTimeout(function() {
+      modal.classList.remove('show');
+      overlay.classList.remove('show');
+      console.log('Modal hidden');
+    }, 2500);
+  }
+
+  function showConfirmation(message, callback) {
+    const modal = document.getElementById('notificationModal');
+    const overlay = document.getElementById('modalOverlay');
+    const icon = document.getElementById('notificationIcon');
+    const title = document.getElementById('notificationTitle');
+    const badgeEl = document.getElementById('notificationBadge');
+    const subtitle = document.querySelector('.notification-subtitle');
+    
+    icon.textContent = '✓';
+    title.textContent = message;
+    badgeEl.style.display = 'none';
+    subtitle.style.display = 'none';
+    
+    modal.classList.add('show');
+    overlay.classList.add('show');
+    
+    setTimeout(function() {
+      modal.classList.remove('show');
+      overlay.classList.remove('show');
+      badgeEl.style.display = 'block';
+      subtitle.style.display = 'block';
+      if (callback) callback();
+    }, 2000);
+  }
+
+  function getCurrentShift() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const time = hours * 60 + minutes;
+    const dayStart = 8 * 60; // 08:00
+    const dayEnd = 18 * 60 + 30; // 18:30
+    const nightStart = 18 * 60 + 38; // 18:38
+    const nightEnd = 5 * 60; // 05:00 next day
+    if (time >= dayStart && time <= dayEnd) {
+      return 'Day';
+    } else if (time >= nightStart || time <= nightEnd) {
+      return 'Night';
+    } else {
+      return 'Day'; // default
+    }
+  }
+
+  function submitEntry(status) {
+    var badge = document.getElementById('bIn').value.trim().toUpperCase();
+    if (!badge) {
+      flash('Please enter a Badge ID first.', true);
+      document.getElementById('bIn').focus();
+      return;
+    }
+
+    document.getElementById('btnIssued').classList.remove('active');
+    document.getElementById('btnReturned').classList.remove('active');
+    document.getElementById(status === 'Issued' ? 'btnIssued' : 'btnReturned').classList.add('active');
+
+    // Show confirmation immediately when button is triggered
+    showConfirmation(status === 'Issued' ? 'Gloves issued successfully for Badge ' + badge : 'Gloves returned successfully for Badge ' + badge, clearBadge);
+
+    if (status === 'Issued') {
+      for (var i = 0; i < records.length; i++) {
+        if (records[i].badge === badge && records[i].status === 'Issued') {
+          flash('Badge ' + badge + ' already has gloves issued and not returned yet.', true);
+          return;
+        }
+      }
+      socket.emit('issue_gloves', {
+        badge: badge,
+        name: '',
+        shift: getCurrentShift(),
+        type: 'General Purpose',
+        size: 'M',
+        qty: 1
+      });
+      flash('\u2714 Gloves issued to Badge: ' + badge, false);
+      showNotificationModal(badge, 'Issued');
+    } else {
+      socket.emit('return_gloves', {badge: badge, reason: 'End of Shift'});
+      flash('\u2714 Gloves marked Returned for Badge: ' + badge, false);
+      showNotificationModal(badge, 'Returned');
+    }
+
+  }
+
+  function quickReturn(badge) {
+    socket.emit('return_gloves', {badge: badge, reason: 'End of Shift'});
+    flash('\u2714 Returned for Badge: ' + badge, false);
+  }
+
+  function renderPending() {
+    var pending = records.filter(function(r) { return r.status === 'Issued'; });
+    document.getElementById('pendingCount').textContent = pending.length;
+    var el = document.getElementById('pendingList');
+    if (pending.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:#bbb;padding:20px;font-style:italic;font-size:0.82rem;">No pending returns. All gloves accounted for &#128994;</div>';
+      return;
+    }
+    el.innerHTML = pending.map(function(r) {
+      return '<div class="pending-item">'
+        + '<span class="pending-badge">' + r.badge + '</span>'
+        + '<span class="pending-time">' + r.issuedAt + '</span>'
+        + '<button class="qr-btn" onclick="quickReturn(\'' + r.badge + '\')">&#8617; Return</button>'
+        + '</div>';
+    }).join('');
+  }
+   // ---- HELPERS ----
+  function toggleOther() {
+    document.getElementById('otherGroup').style.display =
+      document.getElementById('returnReason').value === 'Other' ? 'flex' : 'none';
+  }
+  function nowStr() {
+    return new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  }
+  function todayStr() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+  function getISOWeek(dateStr) {
+    var d = new Date(dateStr);
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    var w1 = new Date(d.getFullYear(), 0, 4);
+    return [d.getFullYear(), 1 + Math.round(((d - w1) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7)];
+  }
+  function weekLabel(year, week) {
+    var simple = new Date(year, 0, 1 + (week - 1) * 7);
+    var dow = simple.getDay();
+    var mon = new Date(simple);
+    mon.setDate(simple.getDate() - (dow === 0 ? 6 : dow - 1));
+    var sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    var fmt = function(d) { return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }); };
+    return 'W' + week + ' (' + fmt(mon) + ' - ' + fmt(sun) + ')';
+  }
+  function monthStr(dateStr) {
+    var d = new Date(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function addActivity(type, msg) {
+    activityLog.unshift({ type: type, msg: msg, time: nowStr() });
+    if (activityLog.length > 50) activityLog.pop();
+    renderActivity();
+  }
+  function flash(msg, isErr) {
+    var el = document.getElementById('flashMsg');
+    el.textContent = msg;
+    el.className = 'flash ' + (isErr ? 'err' : 'ok');
+    el.style.display = 'block';
+    clearTimeout(el._t);
+    el._t = setTimeout(function() { el.style.display = 'none'; }, 3500);
+  }
+   // ---- CLOCK ----
+  function updateClock() {
+    var now = new Date();
+    var opts = { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+    var dateOpts = { timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' };
+    document.getElementById('clock').textContent =
+      now.toLocaleDateString('en-IN', dateOpts) + '  ' + now.toLocaleTimeString('en-IN', opts);
+  }
+   // ---- STATS ----
+  function updateStats() {
+    var today = todayStr();
+    var total = records.length;
+    var active = records.filter(function(r) { return r.status === 'Issued'; }).length;
+    var returned = records.filter(function(r) { return r.status === 'Returned'; }).length;
+    var todayRecs = records.filter(function(r) { return r.issuedDate === today; });
+    var todayCount = todayRecs.length;
+    var dayToday = todayRecs.filter(function(r) { return r.shift === 'Day'; }).length;
+    var nightToday = todayRecs.filter(function(r) { return r.shift === 'Night'; }).length;
+    animateNum('sTotal', total);
+    animateNum('sActive', active);
+    animateNum('sReturned', returned);
+    animateNum('sToday', todayCount);
+    animateNum('sDay', dayToday);
+    animateNum('sNight', nightToday);
+    var returnRate = total > 0 ? Math.round((returned / total) * 100) : 0;
+    document.getElementById('tReturned').textContent = returnRate + '% return rate';
+    document.getElementById('tToday').textContent = 'Today: ' + todayCount + ' issued';
+    document.getElementById('tTotal').textContent = total + ' total records';
+  }
+  var numCache = {};
+  function animateNum(id, target) {
+    var el = document.getElementById(id);
+    var current = numCache[id] || 0;
+    if (current === target) return;
+    var step = target > current ? 1 : -1;
+    var diff = Math.abs(target - current);
+    var delay = diff > 10 ? 20 : 60;
+    var interval = setInterval(function() {
+      current += step;
+      el.textContent = current;
+      numCache[id] = current;
+      if (current === target) clearInterval(interval);
+    }, delay);
+  }
+   // ---- ACTIVITY FEED ----
+  function renderActivity() {
+    var feed = document.getElementById('activityFeed');
+    if (activityLog.length === 0) {
+      feed.innerHTML = '<div class=\"empty-msg\" style=\"padding:20px;\">No activity yet.</div>';
+      return;
+    }
+    feed.innerHTML = activityLog.map(function(a) {
+      var dotClass = a.type === 'issue' ? 'dot-issue' : a.type === 'damage' ? 'dot-damage' : 'dot-return';
+      return '<div class=\"activity-item\"><span class=\"activity-dot ' + dotClass + '\"></span>' +
+        '<span>' + a.msg + '</span>' +
+        '<span class=\"activity-time\">' + a.time.split(',')[1] + '</span></div>';
+    }).join('');
+  }
+   // ---- ISSUE ----
+  function issueGloves() {
+    var badge = document.getElementById('badgeInput').value.trim();
+    var name = document.getElementById('nameInput').value.trim();
+    var shift = document.getElementById('shiftSelect').value;
+    var type = document.getElementById('gloveType').value;
+    var size = document.getElementById('gloveSize').value;
+    var qty = parseInt(document.getElementById('qtyInput').value) || 1;
+    if (!badge) { flash('Please enter a Badge ID.', true); return; }
+    var data = {
+      badge: badge,
+      name: name,
+      shift: shift,
+      type: type,
+      size: size,
+      qty: qty
+    };
+    socket.emit('issue_gloves', data);
+    document.getElementById('badgeInput').value = '';
+    document.getElementById('nameInput').value = '';
+    document.getElementById('qtyInput').value = '1';
+    flash('Gloves issued successfully!', false);
+  }
+   // ---- RETURN ----
+  function returnGloves() {
+    var badge = document.getElementById('returnBadge').value.trim();
+    if (!badge) { flash('Please enter a Badge ID.', true); return; }
+    var reason = document.getElementById('returnReason').value;
+    if (reason === 'Other') reason = document.getElementById('otherInput').value.trim() || 'Other';
+    socket.emit('return_gloves', {badge: badge, reason: reason});
+    document.getElementById('returnBadge').value = '';
+    document.getElementById('otherInput').value = '';
+    document.getElementById('returnReason').selectedIndex = 0;
+    toggleOther();
+    flash('Gloves returned successfully!', false);
+  }
+   // ---- WEEKLY LOOKUP ----
+  function showWeekly() {
+    var badge = document.getElementById('weekBadge').value.trim();
+    if (!badge) { flash('Please enter a Badge ID.', true); return; }
+    var userRecs = records.filter(function(r) { return r.badge === badge; });
+    if (userRecs.length === 0) {
+      document.getElementById('weeklyResult').innerHTML = '<div class=\"info-bar orange\">No records found for this Badge ID.</div>';
+      return;
+    }
+    var weeks = {};
+    userRecs.forEach(function(r) {
+      var wk = getISOWeek(r.issuedDate);
+      var key = wk[0] + '-' + wk[1];
+      if (!weeks[key]) weeks[key] = { label: weekLabel(wk[0], wk[1]), issued: 0, returned: 0, damaged: 0 };
+      weeks[key].issued += r.qty;
+      if (r.status === 'Returned') weeks[key].returned += r.qty;
+      if (r.returnReason === 'Damaged') weeks[key].damaged += r.qty;
+    });
+    var html = '<table class=\"week-table\"><thead><tr><th>Week</th><th>Issued</th><th>Returned</th><th>Damaged</th><th>Pending</th></tr></thead><tbody>';
+    Object.keys(weeks).sort().reverse().forEach(function(k) {
+      var w = weeks[k];
+      var pending = w.issued - w.returned;
+      var cls = k === getISOWeek(todayStr()).join('-') ? 'highlight-cur' : '';
+      html += '<tr class=\"' + cls + '\"><td>' + w.label + '</td><td>' + w.issued + '</td><td>' + w.returned + '</td><td>' + w.damaged + '</td><td>' + pending + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('weeklyResult').innerHTML = html;
+  }
+   // ---- DEFAULTERS ----
+  function genDefaulters() {
+    var metric = document.getElementById('dMetric').value;
+    var period = document.getElementById('dPeriod').value;
+    var topN = parseInt(document.getElementById('dTopN').value);
+    var filtered = records;
+    if (period === 'thisweek') {
+      var wk = getISOWeek(todayStr());
+      filtered = records.filter(function(r) { var rw = getISOWeek(r.issuedDate); return rw[0] === wk[0] && rw[1] === wk[1]; });
+    } else if (period === 'lastweek') {
+      var wk = getISOWeek(todayStr());
+      wk[1] -= 1;
+      if (wk[1] < 1) { wk[0] -= 1; wk[1] = 52; }
+      filtered = records.filter(function(r) { var rw = getISOWeek(r.issuedDate); return rw[0] === wk[0] && rw[1] === wk[1]; });
+    } else if (period === 'thismonth') {
+      var mon = monthStr(todayStr());
+      filtered = records.filter(function(r) { return monthStr(r.issuedDate) === mon; });
+    }
+    var stats = {};
+    filtered.forEach(function(r) {
+      if (!stats[r.badge]) stats[r.badge] = { name: r.name, issued: 0, returned: 0, frequency: 0 };
+      stats[r.badge].issued += r.qty;
+      stats[r.badge].frequency += 1;
+      if (r.status === 'Returned') stats[r.badge].returned += r.qty;
+    });
+    var list = Object.keys(stats).map(function(b) {
+      var s = stats[b];
+      var val;
+      if (metric === 'total') val = s.issued;
+      else val = s.frequency;
+      return { badge: b, name: s.name, val: val, pending: s.issued - s.returned };
+    }).sort(function(a, b) { return b.val - a.val; }).slice(0, topN);
+    if (list.length === 0) {
+      document.getElementById('defaultersResult').innerHTML = '<div class=\"info-bar red\">No data available for the selected period.</div>';
+      return;
+    }
+    var html = '<table class=\"week-table\"><thead><tr><th>Rank</th><th>Badge ID</th><th>Name</th><th>Value</th><th>Pending</th><th>Risk</th></tr></thead><tbody>';
+    list.forEach(function(item, i) {
+      var rank = i + 1;
+      var cls = rank <= 3 ? 'rank-' + rank : '';
+      var risk = item.pending > 5 ? 'risk-high' : item.pending > 2 ? 'risk-med' : 'risk-low';
+      var riskTxt = item.pending > 5 ? 'High' : item.pending > 2 ? 'Medium' : 'Low';
+      html += '<tr class=\"' + cls + '\"><td>' + rank + '</td><td>' + item.badge + '</td><td>' + item.name + '</td><td>' + item.val + '</td><td>' + item.pending + '</td><td class=\"' + risk + '\">' + riskTxt + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('defaultersResult').innerHTML = html;
+  }
+  function printDefaulters() {
+    var content = document.getElementById('defaultersResult').innerHTML;
+    if (!content) { alert('Generate the report first.'); return; }
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Defaulters Report</title><style>body{font-family:Arial,sans-serif;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:8px;text-align:left;} th{background:#232f3e;color:white;}</style></head><body><h1>Top Defaulters Report</h1>' + content + '</body></html>');
+    win.document.close();
+    win.print();
+  }
+   // ---- TABLE ----
+  function renderTable() {
+    var search = document.getElementById('searchInput').value.toLowerCase();
+    var statusF = document.getElementById('fStatus').value;
+    var shiftF = document.getElementById('fShift').value;
+    var dateF = document.getElementById('fDate').value;
+    var filtered = records.filter(function(r) {
+      if (search && !(r.badge.toLowerCase().includes(search) || r.name.toLowerCase().includes(search))) return false;
+      if (statusF !== 'All' && r.status !== statusF) return false;
+      if (shiftF !== 'All' && r.shift !== shiftF) return false;
+      if (dateF && r.issuedDate !== dateF) return false;
+      return true;
+    });
+    var tbody = document.getElementById('tableBody');
+    var empty = document.getElementById('emptyMsg');
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = filtered.map(function(r, i) {
+      var statusChip = r.status === 'Issued' ? '<span class=\"chip chip-issued\">Issued</span>' : '<span class=\"chip chip-returned\">Returned</span>';
+      var shiftChip = r.shift === 'Day' ? '<span class=\"chip chip-day\">☀️ Day</span>' : '<span class=\"chip chip-night\">🌙 Night</span>';
+      var delBtn = '<button class=\"btn btn-red btn-sm\" onclick=\"delRecord(' + r.id + ')\">Del</button>';
+      return '<tr class=\"' + (i < lastCount ? '' : 'new-row') + '\">' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + r.badge + '</td>' +
+        '<td>' + r.name + '</td>' +
+        '<td>' + shiftChip + '</td>' +
+        '<td>' + (r.issuedAt || '-') + '</td>' +
+        '<td>' + (r.returnedAt || '-') + '</td>' +
+        '<td>' + (r.returnReason || '-') + '</td>' +
+        '<td>' + statusChip + '</td>' +
+        '<td class=\"no-print\">' + delBtn + '</td>' +
+        '</tr>';
+    }).join('');
+    lastCount = records.length;
+  }
+  function delRecord(id) {
+    if (!confirm('Delete this record?')) return;
+    socket.emit('delete_record', {id: id});
+  }
+  function exportCSV() {
+    var csv = 'Badge ID,Name,Shift,Issued At,Returned At,Return Reason,Status\n';
+    records.forEach(function(r) {
+      csv += '"' + r.badge + '","' + r.name + '","' + r.shift + '","' + (r.issuedAt || '') + '","' + (r.returnedAt || '') + '","' + (r.returnReason || '') + '","' + r.status + '"\n';
+    });
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'gloves_records.csv';
+    a.click();
+
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+  function printSummary() {
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Gloves Summary</title><style>body{font-family:Arial,sans-serif;margin:20px;} .stats{display:flex;gap:20px;flex-wrap:wrap;} .stat{background:#f0f0f0;padding:10px;border-radius:5px;text-align:center;min-width:100px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:8px;text-align:left;} th{background:#232f3e;color:white;}</style></head><body><h1>Gloves Issuance Summary</h1><div class=\"stats\">' +
+      document.getElementById('statsRow').innerHTML + '</div><h2>Records</h2><table><thead><tr><th>#</th><th>Badge ID</th><th>Name</th><th>Shift</th><th>Glove Type</th><th>Size</th><th>Qty</th><th>Issued At</th><th>Returned At</th><th>Return Reason</th><th>Status</th></tr></thead><tbody>' +
+      records.map(function(r, i) { return '<tr><td>' + (i + 1) + '</td><td>' + r.badge + '</td><td>' + r.name + '</td><td>' + r.shift + '</td><td>' + r.type + '</td><td>' + r.size + '</td><td>' + r.qty + '</td><td>' + r.issuedAt + '</td><td>' + (r.returnedAt || '-') + '</td><td>' + (r.returnReason || '-') + '</td><td>' + r.status + '</td></tr>'; }).join('') +
+      '</tbody></table></body></html>');
+    win.document.close();
+    win.print();
+  }
+  function clearAll() {
+    if (!confirm('Clear all records? This cannot be undone.')) return;
+    records = [];
+    activityLog = [];
+    save();
+    updateStats();
+    renderTable();
+    renderActivity();
+  }
+  // ---- WEEK ON WEEK REPORT ----
+  function generateWeekOnWeek() {
+    var weeks = {};
+    records.forEach(function(r) {
+      var wk = getISOWeek(r.issuedDate);
+      var key = wk[0] + '-' + wk[1];
+      if (!weeks[key]) weeks[key] = { label: weekLabel(wk[0], wk[1]), issued: 0, returned: 0 };
+      weeks[key].issued += r.qty;
+      if (r.status === 'Returned') weeks[key].returned += r.qty;
+    });
+
+    var list = Object.keys(weeks).sort().reverse();
+    var html = '';
+
+    if (list.length > 0) {
+      html += '<h3 style="width:100%;font-size:0.9rem;margin-bottom:12px;color:#232f3e;border-left:4px solid #ff9900;padding-left:10px;">📊 Week on Week Report</h3>';
+      list.slice(0, 5).forEach(function(k) {
+        var w = weeks[k];
+        var pending = w.issued - w.returned;
+        var isCurrent = k === (list[0] || '');
+        html += '<div class="stat-box' + (isCurrent ? ' blue-top' : '') + '">' +
+          '<div style="font-size:0.75rem;color:#666;margin-bottom:4px;">' + w.label + '</div>' +
+          '<div class="num">' + w.issued + '</div>' +
+          '<div class="lbl">Issued</div>' +
+          '<div style="font-size:0.75rem;color:#666;margin-top:6px;">Returned: ' + w.returned + ' | Pending: ' + pending + '</div>' +
+          '</div>';
+      });
+    }
+
+    document.getElementById('weekStatsRow').innerHTML = html;
+  }
+  function refreshDashboard() {
+    updateStats();
+    renderTable();
+    renderActivity();
+    renderPending();
+    generateWeekOnWeek();
+    flash('Dashboard refreshed!', false);
+  }
+  function generateIssuanceReport() {
+    var tbody = document.getElementById('tableBody');
+    var empty = document.getElementById('emptyMsg');
+    if (records.length === 0) {
+      flash('No records available to display.', true);
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.style.display = '';
+    renderTable();
+    flash('Report generated!', false);
+  }
+   // ---- INIT ----
+  setInterval(updateClock, 1000);
+  updateClock();
+  updateStats();
+  renderTable();
+  renderActivity();
+  renderPending();
+  generateWeekOnWeek();
+ </script>
+</body>
+</html>
